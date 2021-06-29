@@ -7,9 +7,9 @@ class Config:
         self.epoch = 50
         self.dropout_level = 0.1
         self.use_mix_embedding = False
-        self.char_dim = 32
+        self.char_dim = 64
         self.word_dim = 100
-        self.hidden_dim = 64
+        self.hidden_dim = 128
         self.kernel_size = 3
         self.dilation = 1
         with open(char_table_file, 'r', encoding='utf-8') as fr:

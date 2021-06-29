@@ -45,6 +45,8 @@ class GatedCNN(nn.Module):
                                kernel_size=kernel_size,
                                dilation=dilation,
                                padding=(dilation * (kernel_size - 1)) // 2)
+        self.fc1 = nn.Linear(in_features=hidden_dim, out_features=4 * hidden_dim, bias=False)
+        self.fc2 = nn.Linear(in_features=4 * hidden_dim, out_features=hidden_dim, bias=False)
         self.activation = nn.Sigmoid()
         self.dropout = nn.Dropout(dropout_level)
 
@@ -55,6 +57,7 @@ class GatedCNN(nn.Module):
         # src = (N, H, L), mask = (N, L)
         # mask.unsqueeze(1) = (N, 1, L)
         src = (src * (1 - src2) + src1 * src2) * mask.unsqueeze(1)
+        src = self.fc2(F.relu(self.fc1(src)))
         return src, mask
 
 

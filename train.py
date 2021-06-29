@@ -57,7 +57,7 @@ def preview_result(model: nn.Module, config: Config):
         mask = torch.Tensor(np.array([1] * len(e))).unsqueeze(0)
         logits = model((ids, mask))
         outputs = torch.argmax(logits, dim=2).long()
-        predict = "".join([config.id2char[i] for i in outputs[0].tolist()])
+        predict = "".join([config.id2char[i] if i != 0 else " " for i in outputs[0].tolist()])
         print("input: {}\ntarget: {}\npredict: {}\n".format(e, t, predict))
 
 
