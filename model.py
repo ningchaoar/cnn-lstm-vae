@@ -57,7 +57,7 @@ class GatedCNN(nn.Module):
         # src = (N, H, L), mask = (N, L)
         # mask.unsqueeze(1) = (N, 1, L)
         src = (src * (1 - src2) + src1 * src2) * mask.unsqueeze(1)
-        src = self.fc2(F.relu(self.fc1(src)))
+        src = self.fc2(F.relu(self.fc1(src.permute(0, 2, 1)))).permute(0, 2, 1)
         return src, mask
 
 
