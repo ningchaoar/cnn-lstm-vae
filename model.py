@@ -61,20 +61,36 @@ class GatedCNN(nn.Module):
         return src, mask
 
 
-class PoemModel(nn.Module):
+class CoupletSeq2Seq(nn.Module):
     def __init__(self, config):
-        super(PoemModel, self).__init__()
+        super(CoupletSeq2Seq, self).__init__()
+        self.config = config
         self.embedding = CustomEmbedding(config)
-        self.cnns = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
-                                  GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
-                                  GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
-        self.fc = nn.Linear(config.hidden_dim, config.char_table_size+1, bias=True)  # no UNK
+        if config.model_type == "GCNN":
+            self.blocks = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
+                                        GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
+                                        GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
+            self.fc = nn.Linear(config.hidden_dim, config.char_table_size + 1, bias=True)  # no UNK
+        elif config.model_type == "LSTM":
+            self.blocks = nn.LSTM(input_size=config.hidden_dim,
+                                  hidden_size=config.hidden_dim,
+                                  batch_first=True,
+                                  bidirectional=True)
+            self.fc = nn.Linear(config.hidden_dim * 2, config.char_table_size+1, bias=True)  # no UNK
+        else:
+            raise Exception("Wrong Model Type")
 
     def forward(self, inputs):
         ids, mask = inputs
         emb = self.embedding(ids)
-        ht, mask = self.cnns((emb.permute(0, 2, 1), mask))
-        logit = self.fc(ht.permute(0, 2, 1))
+        if self.config.model_type == "GCNN":
+            ht, mask = self.blocks((emb.permute(0, 2, 1), mask))
+            logit = self.fc(ht.permute(0, 2, 1))
+        elif self.config.model_type == "LSTM":
+            ht = self.blocks(emb)
+            logit = self.fc(ht[0])
+        else:
+            raise Exception("Wrong Model Type")
         return logit
 
 

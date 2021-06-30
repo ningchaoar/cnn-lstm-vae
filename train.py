@@ -6,7 +6,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from config import Config
-from model import PoemModel
+from model import CoupletSeq2Seq
 from data import CustomDataset
 
 
@@ -14,7 +14,8 @@ def train():
     config = Config("resources/couplet/chars_sort.txt")
     couplet_dataset = CustomDataset(config)
     dataloader = DataLoader(couplet_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=couplet_dataset.custom_collate_fn)
-    model = PoemModel(config)
+    model = CoupletSeq2Seq(config)
+    model.to(config.device)
     loss_fn = nn.CrossEntropyLoss(reduction='mean')
     optimizer = torch.optim.Adam(model.parameters())
     logger_string = "epoch: {}, loss: {}\n"
@@ -53,8 +54,8 @@ def preview_result(model: nn.Module, config: Config):
                "花",
                "学雷锋，做好事，为国利民"]
     for e, t in zip(examples, targets):
-        ids = torch.Tensor(np.array([config.char2id[c] for c in e])).long().unsqueeze(0)
-        mask = torch.Tensor(np.array([1] * len(e))).unsqueeze(0)
+        ids = torch.Tensor(np.array([config.char2id.get(c, config.char_table_size + 1) for c in e])).long().unsqueeze(0).to(config.device)
+        mask = torch.Tensor(np.array([1] * len(e))).unsqueeze(0).to(config.device)
         logits = model((ids, mask))
         outputs = torch.argmax(logits, dim=2).long()
         predict = "".join([config.id2char[i] if i != 0 else " " for i in outputs[0].tolist()])

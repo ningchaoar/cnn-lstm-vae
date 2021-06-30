@@ -12,6 +12,7 @@ from config import Config
 
 class CustomDataset(Dataset):
     def __init__(self, config):
+        self.config = config
         train_in = CustomDataset.load_from_file(os.path.join(config.train_data_dir, "in.txt"))
         train_out = CustomDataset.load_from_file(os.path.join(config.train_data_dir, "out.txt"))
         valid_in = CustomDataset.load_from_file(os.path.join(config.valid_data_dir, "in.txt"))
@@ -98,9 +99,9 @@ class CustomDataset(Dataset):
         tensor_in = [arr[:max_length_in] if len(arr) >= max_length_in else arr + [0] * (max_length_in-len(arr)) for arr in tensor_in]
         tensor_mask = [[1 if v != 0 else 0 for v in arr] for arr in tensor_in]
         tensor_out = [arr[:max_length_out] if len(arr) >= max_length_out else arr + [0] * (max_length_out-len(arr)) for arr in tensor_out]
-        tensor_in = torch.Tensor(np.array(tensor_in)).long()
-        tensor_mask = torch.Tensor(np.array(tensor_mask)).long()
-        tensor_out = torch.Tensor(np.array(tensor_out)).long()
+        tensor_in = torch.Tensor(np.array(tensor_in)).long().to(self.config.device)
+        tensor_mask = torch.Tensor(np.array(tensor_mask)).long().to(self.config.device)
+        tensor_out = torch.Tensor(np.array(tensor_out)).long().to(self.config.device)
         return (tensor_in, tensor_mask), tensor_out
 
 
