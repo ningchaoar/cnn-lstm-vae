@@ -87,6 +87,7 @@ class CustomDataset(Dataset):
     def custom_collate_fn(self, batch):
         tensor_in = []
         tensor_out = []
+        lengths = []
         max_length_in = -1
         max_length_out = -1
         for data in batch:
@@ -94,6 +95,7 @@ class CustomDataset(Dataset):
             # char level ids only
             tensor_in.append(data_in[1])
             tensor_out.append(data_out[1])
+            lengths.append(len(data_in[1]))
             max_length_in = max(max_length_in, len(data_in[1]))
             max_length_out = max(max_length_out, len(data_out[1]))
         tensor_in = [arr[:max_length_in] if len(arr) >= max_length_in else arr + [0] * (max_length_in-len(arr)) for arr in tensor_in]
@@ -102,7 +104,7 @@ class CustomDataset(Dataset):
         tensor_in = torch.Tensor(np.array(tensor_in)).long().to(self.config.device)
         tensor_mask = torch.Tensor(np.array(tensor_mask)).long().to(self.config.device)
         tensor_out = torch.Tensor(np.array(tensor_out)).long().to(self.config.device)
-        return (tensor_in, tensor_mask), tensor_out
+        return (tensor_in, tensor_mask, lengths), tensor_out
 
 
 if __name__ == "__main__":

@@ -61,9 +61,9 @@ class GatedCNN(nn.Module):
         return src, mask
 
 
-class CoupletSeq2Seq(nn.Module):
+class CoupletSeqLabeling(nn.Module):
     def __init__(self, config):
-        super(CoupletSeq2Seq, self).__init__()
+        super(CoupletSeqLabeling, self).__init__()
         self.config = config
         self.embedding = CustomEmbedding(config)
         if config.model_type == "GCNN":
@@ -81,22 +81,24 @@ class CoupletSeq2Seq(nn.Module):
             raise Exception("Wrong Model Type")
 
     def forward(self, inputs):
-        ids, mask = inputs
+        ids, mask, lengths = inputs
         emb = self.embedding(ids)
         if self.config.model_type == "GCNN":
             ht, mask = self.blocks((emb.permute(0, 2, 1), mask))
             logit = self.fc(ht.permute(0, 2, 1))
         elif self.config.model_type == "LSTM":
+            emb = nn.utils.rnn.pack_padded_sequence(emb, lengths, batch_first=True, enforce_sorted=False)
             ht = self.blocks(emb)
-            logit = self.fc(ht[0])
+            ht, lengths = nn.utils.rnn.pad_packed_sequence(ht[0], batch_first=True)
+            logit = self.fc(ht)
         else:
             raise Exception("Wrong Model Type")
         return logit
 
 
-class Decoder(nn.Module):
+class CoupletSeq2Seq(nn.Module):
     def __init__(self):
-        super(Decoder, self).__init__()
+        super(CoupletSeq2Seq, self).__init__()
 
     def forward(self):
         ...

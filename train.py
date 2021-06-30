@@ -6,15 +6,15 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from config import Config
-from model import CoupletSeq2Seq
 from data import CustomDataset
+from model import CoupletSeqLabeling
 
 
 def train():
     config = Config("resources/couplet/chars_sort.txt")
     couplet_dataset = CustomDataset(config)
     dataloader = DataLoader(couplet_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=couplet_dataset.custom_collate_fn)
-    model = CoupletSeq2Seq(config)
+    model = CoupletSeqLabeling(config)
     model.to(config.device)
     loss_fn = nn.CrossEntropyLoss(reduction='mean')
     optimizer = torch.optim.Adam(model.parameters())
@@ -55,10 +55,11 @@ def preview_result(model: nn.Module, config: Config):
                "学雷锋，做好事，为国利民"]
     for e, t in zip(examples, targets):
         ids = torch.Tensor(np.array([config.char2id.get(c, config.char_table_size + 1) for c in e])).long().unsqueeze(0).to(config.device)
-        mask = torch.Tensor(np.array([1] * len(e))).unsqueeze(0).to(config.device)
-        logits = model((ids, mask))
+        masks = torch.Tensor(np.array([1] * len(e))).unsqueeze(0).to(config.device)
+        lengths = [len(e)]
+        logits = model((ids, masks, lengths))
         outputs = torch.argmax(logits, dim=2).long()
-        predict = "".join([config.id2char[i] if i != 0 else " " for i in outputs[0].tolist()])
+        predict = "".join([config.id2char.get(i, "<UNK>") if i != 0 else " " for i in outputs[0].tolist()])
         print("input: {}\ntarget: {}\npredict: {}\n".format(e, t, predict))
 
 
