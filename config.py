@@ -27,8 +27,8 @@ class Config:
             # 0 for padding, last for UNK
             self.char2id = {char.strip().split('\t')[0]: i+1 for i, char in enumerate(fr) if int(char.strip().split('\t')[1]) >= 10}
             self.id2char = {i: char for char, i in self.char2id.items()}
-        self.char_table_size = len(self.char2id)
+        self.char_table_size = len(self.char2id)  # last index for 'UNK'
         self.word2id = {}
-        self.word_table_size = 0
+        self.word_table_size = len(self.word2id)
 
         self.output_dir = "result/model_lstm_b64_c128_h256"

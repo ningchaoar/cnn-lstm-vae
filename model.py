@@ -70,13 +70,13 @@ class CoupletSeq2Seq(nn.Module):
             self.blocks = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
                                         GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
                                         GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
-            self.fc = nn.Linear(config.hidden_dim, config.char_table_size + 1, bias=True)  # no UNK
+            self.fc = nn.Linear(config.hidden_dim, config.char_table_size + 2, bias=True)
         elif config.model_type == "LSTM":
             self.blocks = nn.LSTM(input_size=config.hidden_dim,
                                   hidden_size=config.hidden_dim,
                                   batch_first=True,
                                   bidirectional=True)
-            self.fc = nn.Linear(config.hidden_dim * 2, config.char_table_size+1, bias=True)  # no UNK
+            self.fc = nn.Linear(config.hidden_dim * 2, config.char_table_size + 2, bias=True)
         else:
             raise Exception("Wrong Model Type")
 

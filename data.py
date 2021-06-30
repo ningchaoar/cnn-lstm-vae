@@ -78,9 +78,9 @@ class CustomDataset(Dataset):
             word_ids = []
             seg = datas[i][0]
             for t in seg:
-                word_ids.extend([self.word2id.get(t, len(word_ids)) * len(t)])  # last index stand for UNK
+                word_ids.extend([self.word2id.get(t, self.config.word_table_size + 1) * len(t)])  # last index stand for UNK
                 for c in t:
-                    char_ids.append(self.char2id.get(c, len(char_ids)))
+                    char_ids.append(self.char2id.get(c, self.config.char_table_size + 1))
             datas[i].append(char_ids)
             datas[i].append(word_ids)
 
