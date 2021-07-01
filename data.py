@@ -23,7 +23,8 @@ class CustomDataset(Dataset):
         self.word2id = config.word2id
         # 分词 + 转化为ID序列
         for datas in [train_in, train_out, valid_in, valid_out]:
-            CustomDataset.segment(datas)
+            if config.use_mix_embedding:
+                CustomDataset.segment(datas)
             self.seq_to_ids(datas)
         self.train_data = [train_in, train_out]
         self.valid_data = [valid_in, valid_out]
@@ -105,11 +106,3 @@ class CustomDataset(Dataset):
         tensor_mask = torch.Tensor(np.array(tensor_mask)).long().to(self.config.device)
         tensor_out = torch.Tensor(np.array(tensor_out)).long().to(self.config.device)
         return (tensor_in, tensor_mask, lengths), tensor_out
-
-
-if __name__ == "__main__":
-    config = Config("resources/couplet/vocabs")
-    dataset = CustomDataset(config)
-    dataloader = DataLoader(dataset, batch_size=8, collate_fn=dataset.custom_collate_fn)
-    for data in dataloader:
-        print(1)
