@@ -13,7 +13,7 @@ from model import CoupletSeqLabeling
 def train():
     config = Config("resources/couplet/chars_sort.txt")
     couplet_dataset = CustomDataset(config)
-    dataloader = DataLoader(couplet_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=couplet_dataset.custom_collate_fn)
+    dataloader = DataLoader(couplet_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=couplet_dataset.custom_collate_fn_2)
     model = CoupletSeqLabeling(config)
     model.to(config.device)
     loss_fn = nn.CrossEntropyLoss(reduction='mean')

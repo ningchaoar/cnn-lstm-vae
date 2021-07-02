@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -67,15 +68,15 @@ class CoupletSeqLabeling(nn.Module):
         self.config = config
         self.embedding = CustomEmbedding(config)
         if config.model_type == "GCNN":
-            self.blocks = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
-                                        GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
-                                        GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
+            self.encoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
+                                         GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
+                                         GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
             self.fc = nn.Linear(config.hidden_dim, config.char_table_size + 2, bias=True)
         elif config.model_type == "LSTM":
-            self.blocks = nn.LSTM(input_size=config.hidden_dim,
-                                  hidden_size=config.hidden_dim,
-                                  batch_first=True,
-                                  bidirectional=True)
+            self.encoder = nn.LSTM(input_size=config.hidden_dim,
+                                   hidden_size=config.hidden_dim,
+                                   batch_first=True,
+                                   bidirectional=True)
             self.fc = nn.Linear(config.hidden_dim * 2, config.char_table_size + 2, bias=True)
         else:
             raise Exception("Wrong Model Type")
@@ -84,11 +85,11 @@ class CoupletSeqLabeling(nn.Module):
         ids, mask, lengths = inputs
         emb = self.embedding(ids)
         if self.config.model_type == "GCNN":
-            ht, mask = self.blocks((emb.permute(0, 2, 1), mask))
+            ht, mask = self.encoder((emb.permute(0, 2, 1), mask))
             logit = self.fc(ht.permute(0, 2, 1))
         elif self.config.model_type == "LSTM":
             emb = nn.utils.rnn.pack_padded_sequence(emb, lengths, batch_first=True, enforce_sorted=False)
-            ht = self.blocks(emb)
+            ht = self.encoder(emb)
             ht, lengths = nn.utils.rnn.pad_packed_sequence(ht[0], batch_first=True)
             logit = self.fc(ht)
         else:
@@ -96,17 +97,69 @@ class CoupletSeqLabeling(nn.Module):
         return logit
 
 
-class CoupletSeq2Seq(nn.Module):
+class CoupletSeq2SeqWithVAE(nn.Module):
+    def __init__(self, config):
+        super(CoupletSeq2SeqWithVAE, self).__init__()
+        self.config = config
+        self.embedding = CustomEmbedding(config)
+        self.encoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
+                                     GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
+        self.pooling = AttentionPooling1D(config.hidden_dim)
+        self.fc_mean = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
+        self.fc_var = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
+        # modules below will be reused as generation model
+        self.fc_vae = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * 2 * config.max_length)
+        self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
+        self.fc_out = nn.Linear(in_features=config.hidden_dim, out_features=config.char_table_size + 2)
+
+    def forward(self, inputs):
+        ids, mask, lengths = inputs
+        emb = self.embedding(ids).permute(0, 2, 1)
+        ht, mask = self.encoder((emb, mask)).permute(0, 2, 1)
+        z_mean = self.fc_mean(ht)
+        z_var = self.fc_var(ht)
+
+        z = self.sampling(z_mean, z_var)
+        hz = self.fc_vae(z)
+        hz = hz.view(-1, self.config.hidden_dim, 2 * self.config.max_length)
+        hz = self.decoder(hz, mask).permute(0, 2, 1)
+        logits = self.fc_out(hz)
+        return logits
+
+
+class AttentionPooling1D(nn.Module):
+    """
+    soft attention layer
+    公式: a = x * softmax(U*tanh(Wx))
+    input:
+        src: hidden state of t_step, shape = (N, H, L)
+        mask: padding masks, shape = (N, L)
+    output:
+        attention value: shape = (N, H)
+    """
+    def __init__(self, hidden_size):
+        super(AttentionPooling1D, self).__init__()
+        self.W = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.U = nn.Linear(hidden_size, 1, bias=False)
+        self.activation = nn.Tanh()
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, src, mask):
+        # src = (N, L, H)
+        # mask = (N, L)
+        logit = self.U(self.activation(self.W(src)))  # (batch_size, length, 1)
+        # softmax前做归一化，防止方差随着维度增加而增加，避免softmax的结果差距过大
+        logit = logit.squeeze() / math.sqrt(src.shape[2])
+        if mask is not None:
+            logit = logit - (1 - mask) * 10000  # padding mask
+        prob = self.softmax(logit).unsqueeze(-1)  # (batch_size, length, 1)
+        attention_value = torch.sum(src * prob, dim=1)  # (batch_size, hidden_size)
+        return attention_value
+
+
+class VAEG(nn.Module):
     def __init__(self):
-        super(CoupletSeq2Seq, self).__init__()
-
-    def forward(self):
-        ...
-
-
-class VAE(nn.Module):
-    def __init__(self):
-        super(VAE, self).__init__()
+        super(VAEG, self).__init__()
 
     def forward(self):
         ...

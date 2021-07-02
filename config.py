@@ -13,7 +13,8 @@ class Config:
         self.char_dim = 128
         self.word_dim = 100
         self.hidden_dim = 256
-        self.model_type = "LSTM"  # "GCNN" -> gated cnn, "LSTM" -> bi-LSTM
+        self.max_length = 10  # if set None, max length will depend on the longest input in a batch.
+        self.model_type = "GCNN"  # "GCNN" -> gated cnn, "LSTM" -> bi-LSTM
         # GCNN settings
         self.kernel_size = 3
         self.dilation = 1

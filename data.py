@@ -7,16 +7,14 @@ from tqdm import tqdm
 from typing import List, Dict
 from torch.utils.data import Dataset, DataLoader
 
-from config import Config
-
 
 class CustomDataset(Dataset):
     def __init__(self, config):
         self.config = config
-        train_in = CustomDataset.load_from_file(os.path.join(config.train_data_dir, "in.txt"))
-        train_out = CustomDataset.load_from_file(os.path.join(config.train_data_dir, "out.txt"))
-        valid_in = CustomDataset.load_from_file(os.path.join(config.valid_data_dir, "in.txt"))
-        valid_out = CustomDataset.load_from_file(os.path.join(config.valid_data_dir, "out.txt"))
+        train_in = self.load_from_file(os.path.join(config.train_data_dir, "in.txt"))
+        train_out = self.load_from_file(os.path.join(config.train_data_dir, "out.txt"))
+        valid_in = self.load_from_file(os.path.join(config.valid_data_dir, "in.txt"))
+        valid_out = self.load_from_file(os.path.join(config.valid_data_dir, "out.txt"))
         assert len(train_in) == len(train_out)
         assert len(valid_in) == len(valid_out)
         self.char2id = config.char2id
@@ -35,10 +33,14 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         return [self.train_data[0][idx], self.train_data[1][idx]]
 
-    @staticmethod
-    def load_from_file(path: str) -> List[str]:
+    def load_from_file(self, path: str) -> List[List[str]]:
+        datas = []
         with open(path, 'r', encoding='utf-8') as fr:
-            datas = ["".join(line.strip().split(' ')) for line in fr if line.strip()]
+            for line in fr:
+                line = line.strip().split(' ')
+                if self.config.max_length and len(line) > self.config.max_length:
+                    continue
+                datas.append(["".join(line)])
         return datas
 
     @staticmethod
@@ -70,7 +72,7 @@ class CustomDataset(Dataset):
     @staticmethod
     def segment(datas):
         for i in tqdm(range(len(datas)), desc='预分词'):
-            text = datas[i]
+            text = datas[i][0]
             datas[i] = [CustomDataset.jieba_segment(text, mode='default')]
 
     def seq_to_ids(self, datas):
@@ -85,7 +87,8 @@ class CustomDataset(Dataset):
             datas[i].append(char_ids)
             datas[i].append(word_ids)
 
-    def custom_collate_fn(self, batch):
+    def custom_collate_fn_1(self, batch):
+        # used in sequence labeling task
         tensor_in = []
         tensor_out = []
         lengths = []
@@ -105,4 +108,21 @@ class CustomDataset(Dataset):
         tensor_in = torch.Tensor(np.array(tensor_in)).long().to(self.config.device)
         tensor_mask = torch.Tensor(np.array(tensor_mask)).long().to(self.config.device)
         tensor_out = torch.Tensor(np.array(tensor_out)).long().to(self.config.device)
+        return (tensor_in, tensor_mask, lengths), tensor_out
+
+    def custom_collate_fn_2(self, batch):
+        # used in sequence to sequence task
+        tensor_in = []
+        lengths = []
+        max_length_in = -1
+        for data in batch:
+            whole_sentence = data[0][1] + [self.config.char2id["&"]] + data[1][1]
+            tensor_in.append(whole_sentence)
+            lengths.append(len(whole_sentence))
+            max_length_in = max(max_length_in, len(whole_sentence))
+        tensor_in = [arr[:max_length_in] if len(arr) >= max_length_in else arr + [0] * (max_length_in-len(arr)) for arr in tensor_in]
+        tensor_mask = [[1 if v != 0 else 0 for v in arr] for arr in tensor_in]
+        tensor_in = torch.Tensor(np.array(tensor_in)).long().to(self.config.device)
+        tensor_mask = torch.Tensor(np.array(tensor_mask)).long().to(self.config.device)
+        tensor_out = tensor_in.clone()
         return (tensor_in, tensor_mask, lengths), tensor_out
