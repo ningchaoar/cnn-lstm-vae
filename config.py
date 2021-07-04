@@ -3,7 +3,7 @@ import torch
 
 class Config:
     def __init__(self, char_table_file):
-        self.train_data_dir = "resources/couplet/train_mini"
+        self.train_data_dir = "resources/couplet/train"
         self.valid_data_dir = "resources/couplet/test"
         self.learning_rate = 0.01
         self.batch_size = 64

@@ -106,25 +106,22 @@ class CoupletSeq2SeqWithVAE(nn.Module):
                                      GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
         self.pooling = AttentionPooling1D(config.hidden_dim)
         self.fc_mean = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
-        self.fc_var = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
-        # modules below will be reused as generation model
-        self.fc_vae = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * 2 * config.max_length)
-        self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
-        self.fc_out = nn.Linear(in_features=config.hidden_dim, out_features=config.char_table_size + 2)
+        self.fc_log_var = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
+        self.vae_decoder = VAEG(config)
 
     def forward(self, inputs):
         ids, mask, lengths = inputs
         emb = self.embedding(ids).permute(0, 2, 1)
         ht, mask = self.encoder((emb, mask)).permute(0, 2, 1)
         z_mean = self.fc_mean(ht)
-        z_var = self.fc_var(ht)
-
-        z = self.sampling(z_mean, z_var)
-        hz = self.fc_vae(z)
-        hz = hz.view(-1, self.config.hidden_dim, 2 * self.config.max_length)
-        hz = self.decoder(hz, mask).permute(0, 2, 1)
-        logits = self.fc_out(hz)
+        z_log_var = self.fc_log_var(ht)
+        z = self.sampling(z_mean, z_log_var)
+        logits = self.vae_decoder(z, mask)
         return logits
+
+    def sampling(self, mean, log_var):
+        epsilon = torch.randn_like(mean)
+        return mean + torch.exp(log_var / 2) * epsilon
 
 
 class AttentionPooling1D(nn.Module):
@@ -158,8 +155,15 @@ class AttentionPooling1D(nn.Module):
 
 
 class VAEG(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super(VAEG, self).__init__()
+        self.fc_vae = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * 2 * config.max_length)
+        self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
+        self.fc_out = nn.Linear(in_features=config.hidden_dim, out_features=config.char_table_size + 2)
 
-    def forward(self):
-        ...
+    def forward(self, z, mask):
+        hz = self.fc_vae(z)
+        hz = hz.view(-1, self.config.hidden_dim, 2 * self.config.max_length)
+        hz = self.decoder(hz, mask).permute(0, 2, 1)
+        logits = self.fc_out(hz)
+        return logits
