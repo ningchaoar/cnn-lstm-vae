@@ -114,7 +114,7 @@ class CustomDataset(Dataset):
         # used in sequence to sequence task
         tensor_in = []
         lengths = []
-        max_length_in = -1
+        max_length_in = 2 * self.config.max_length + 1
         for data in batch:
             whole_sentence = data[0][1] + [self.config.char2id["&"]] + data[1][1]
             tensor_in.append(whole_sentence)

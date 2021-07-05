@@ -52,7 +52,11 @@ class GatedCNN(nn.Module):
         self.dropout = nn.Dropout(dropout_level)
 
     def forward(self, inputs):
-        src, mask = inputs
+        if isinstance(inputs, tuple):
+            src, mask = inputs
+        else:
+            src = inputs
+            mask = torch.ones((src.shape[0], src.shape[2]))
         src1 = self.conv1(src)
         src2 = self.activation(self.dropout(self.conv2(src)))
         # src = (N, H, L), mask = (N, L)
@@ -107,21 +111,33 @@ class CoupletSeq2SeqWithVAE(nn.Module):
         self.pooling = AttentionPooling1D(config.hidden_dim)
         self.fc_mean = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
         self.fc_log_var = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
-        self.vae_decoder = VAEG(config)
+        self.decoder = VAEDecoder(config)
 
     def forward(self, inputs):
         ids, mask, lengths = inputs
-        emb = self.embedding(ids).permute(0, 2, 1)
-        ht, mask = self.encoder((emb, mask)).permute(0, 2, 1)
+        emb = self.embedding(ids)
+        ht, mask = self.encoder((emb.permute(0, 2, 1), mask))
+        ht = self.pooling(ht.permute(0, 2, 1), mask)
         z_mean = self.fc_mean(ht)
         z_log_var = self.fc_log_var(ht)
-        z = self.sampling(z_mean, z_log_var)
-        logits = self.vae_decoder(z, mask)
-        return logits
+        z = self.reparameterize(z_mean, z_log_var)
 
-    def sampling(self, mean, log_var):
+        logits = self.decoder(z, mask)
+        kld_loss = self.loss_function(z_mean, z_log_var)
+
+        return logits, kld_loss
+
+    def reparameterize(self, mean, log_var):
         epsilon = torch.randn_like(mean)
         return mean + torch.exp(log_var / 2) * epsilon
+
+    def loss_function(self, mean, log_var):
+        kld_loss = -0.5 * torch.sum(1 + log_var - torch.square(mean) - torch.exp(log_var), dim=1)
+        kld_loss = torch.mean(kld_loss, dim=0)
+        return kld_loss
+
+    def get_decoder(self):
+        return self.decoder
 
 
 class AttentionPooling1D(nn.Module):
@@ -129,7 +145,7 @@ class AttentionPooling1D(nn.Module):
     soft attention layer
     公式: a = x * softmax(U*tanh(Wx))
     input:
-        src: hidden state of t_step, shape = (N, H, L)
+        src: hidden state of t_step, shape = (N, L, H)
         mask: padding masks, shape = (N, L)
     output:
         attention value: shape = (N, H)
@@ -154,16 +170,20 @@ class AttentionPooling1D(nn.Module):
         return attention_value
 
 
-class VAEG(nn.Module):
+class VAEDecoder(nn.Module):
     def __init__(self, config):
-        super(VAEG, self).__init__()
-        self.fc_vae = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * 2 * config.max_length)
+        super(VAEDecoder, self).__init__()
+        self.config = config
+        self.fc_vae = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * (2 * config.max_length + 1))
         self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
         self.fc_out = nn.Linear(in_features=config.hidden_dim, out_features=config.char_table_size + 2)
 
-    def forward(self, z, mask):
+    def forward(self, z, mask=None):
         hz = self.fc_vae(z)
-        hz = hz.view(-1, self.config.hidden_dim, 2 * self.config.max_length)
-        hz = self.decoder(hz, mask).permute(0, 2, 1)
-        logits = self.fc_out(hz)
+        hz = hz.view(-1, self.config.hidden_dim, 2 * self.config.max_length + 1)
+        if mask is not None:
+            hz, mask = self.decoder((hz, mask))
+        else:
+            hz, mask = self.decoder(hz)
+        logits = self.fc_out(hz.permute(0, 2, 1))
         return logits
