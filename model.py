@@ -34,8 +34,9 @@ class CustomEmbedding(nn.Module):
 
 
 class GatedCNN(nn.Module):
-    def __init__(self, hidden_dim, dropout_level, kernel_size=3, dilation=1):
+    def __init__(self, hidden_dim, dropout_level, kernel_size=3, dilation=1, add_fc_layer=True):
         super(GatedCNN, self).__init__()
+        self.add_fc_layer = add_fc_layer
         self.conv1 = nn.Conv1d(in_channels=hidden_dim,
                                out_channels=hidden_dim,
                                kernel_size=kernel_size,
@@ -46,23 +47,21 @@ class GatedCNN(nn.Module):
                                kernel_size=kernel_size,
                                dilation=dilation,
                                padding=(dilation * (kernel_size - 1)) // 2)
-        self.fc1 = nn.Linear(in_features=hidden_dim, out_features=4 * hidden_dim, bias=False)
-        self.fc2 = nn.Linear(in_features=4 * hidden_dim, out_features=hidden_dim, bias=False)
+        if add_fc_layer:
+            self.fc1 = nn.Linear(in_features=hidden_dim, out_features=4 * hidden_dim, bias=False)
+            self.fc2 = nn.Linear(in_features=4 * hidden_dim, out_features=hidden_dim, bias=False)
         self.activation = nn.Sigmoid()
         self.dropout = nn.Dropout(dropout_level)
 
     def forward(self, inputs):
-        if isinstance(inputs, tuple):
-            src, mask = inputs
-        else:
-            src = inputs
-            mask = torch.ones((src.shape[0], src.shape[2]))
+        src, mask = inputs
         src1 = self.conv1(src)
         src2 = self.activation(self.dropout(self.conv2(src)))
         # src = (N, H, L), mask = (N, L)
         # mask.unsqueeze(1) = (N, 1, L)
         src = (src * (1 - src2) + src1 * src2) * mask.unsqueeze(1)
-        src = self.fc2(F.relu(self.fc1(src.permute(0, 2, 1)))).permute(0, 2, 1)
+        if self.add_fc_layer:
+            src = self.fc2(F.relu(self.fc1(src.permute(0, 2, 1)))).permute(0, 2, 1)
         return src, mask
 
 
@@ -106,8 +105,8 @@ class CoupletSeq2SeqWithVAE(nn.Module):
         super(CoupletSeq2SeqWithVAE, self).__init__()
         self.config = config
         self.embedding = CustomEmbedding(config)
-        self.encoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level),
-                                     GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
+        self.encoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level, add_fc_layer=False),
+                                     GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level, add_fc_layer=False))
         self.pooling = AttentionPooling1D(config.hidden_dim)
         self.fc_mean = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
         self.fc_log_var = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim, bias=True)
@@ -122,7 +121,7 @@ class CoupletSeq2SeqWithVAE(nn.Module):
         z_log_var = self.fc_log_var(ht)
         z = self.reparameterize(z_mean, z_log_var)
 
-        logits = self.decoder(z, mask)
+        logits = self.decoder((z, mask))
         kld_loss = self.loss_function(z_mean, z_log_var)
 
         return logits, kld_loss
@@ -175,15 +174,13 @@ class VAEDecoder(nn.Module):
         super(VAEDecoder, self).__init__()
         self.config = config
         self.fc_vae = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * (2 * config.max_length + 1))
-        self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level))
+        self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level, add_fc_layer=False))
         self.fc_out = nn.Linear(in_features=config.hidden_dim, out_features=config.char_table_size + 2)
 
-    def forward(self, z, mask=None):
+    def forward(self, inputs):
+        z, mask = inputs
         hz = self.fc_vae(z)
-        hz = hz.view(-1, self.config.hidden_dim, 2 * self.config.max_length + 1)
-        if mask is not None:
-            hz, mask = self.decoder((hz, mask))
-        else:
-            hz, mask = self.decoder(hz)
+        hz = hz.view(-1, 2 * self.config.max_length + 1, self.config.hidden_dim)
+        hz, mask = self.decoder((hz.permute(0, 2, 1), mask))
         logits = self.fc_out(hz.permute(0, 2, 1))
         return logits

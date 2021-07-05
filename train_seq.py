@@ -5,12 +5,12 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
-from config import Config
+from config_seq import Config
 from data import CustomDataset
 from model import CoupletSeqLabeling
 
 
-def train():
+def train_seq_labeling():
     config = Config("resources/couplet/chars_sort.txt")
     couplet_dataset = CustomDataset(config)
     dataloader = DataLoader(couplet_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=couplet_dataset.custom_collate_fn_1)
@@ -55,7 +55,7 @@ def preview_result(model: nn.Module, config: Config):
                "学雷锋，做好事，为国利民"]
     for e, t in zip(examples, targets):
         ids = torch.Tensor(np.array([config.char2id.get(c, config.char_table_size + 1) for c in e])).long().unsqueeze(0).to(config.device)
-        masks = torch.Tensor(np.array([1] * len(e))).unsqueeze(0).to(config.device)
+        masks = torch.ones((1, len(e))).to(config.device)
         lengths = [len(e)]
         logits = model((ids, masks, lengths))
         outputs = torch.argmax(logits, dim=2).long()
@@ -64,4 +64,4 @@ def preview_result(model: nn.Module, config: Config):
 
 
 if __name__ == "__main__":
-    train()
+    train_seq_labeling()
