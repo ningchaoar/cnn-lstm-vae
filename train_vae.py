@@ -16,7 +16,7 @@ def train_vae():
                             collate_fn=couplet_dataset.custom_collate_fn_2)
     model = CoupletSeq2SeqWithVAE(config)
     model.to(config.device)
-    loss_fn = nn.CrossEntropyLoss(reduction='mean')
+    loss_fn = nn.CrossEntropyLoss(reduction='sum').to(config.device)
     optimizer = torch.optim.Adam(model.parameters())
     logger_string = "epoch: {}, cross_entropy_loss: {}, kld_loss: {}\n"
     print("start training...")
@@ -25,8 +25,8 @@ def train_vae():
         for data in tqdm(dataloader):
             inputs, targets = data
             logits, kld_loss = model(inputs)
-            label_loss = loss_fn(logits.permute(0, 2, 1), targets)
-            loss = label_loss + kld_loss
+            label_loss = loss_fn(logits.permute(0, 2, 1), targets) / config.batch_size
+            loss = label_loss + config.kl_weight * kld_loss
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()

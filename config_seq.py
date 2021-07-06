@@ -5,7 +5,7 @@ class Config:
     def __init__(self, char_table_file):
         self.train_data_dir = "resources/couplet/train_mini"
         self.valid_data_dir = "resources/couplet/test"
-        self.learning_rate = 0.01
+        self.learning_rate = 0.001
         self.batch_size = 64
         self.epoch = 50
         self.dropout_level = 0.1

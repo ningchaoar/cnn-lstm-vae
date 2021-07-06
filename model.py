@@ -116,7 +116,10 @@ class CoupletSeq2SeqWithVAE(nn.Module):
         ids, mask, lengths = inputs
         emb = self.embedding(ids)
         ht, mask = self.encoder((emb.permute(0, 2, 1), mask))
-        ht = self.pooling(ht.permute(0, 2, 1), mask)
+        if self.config.use_attention:
+            ht = self.pooling(ht.permute(0, 2, 1), mask)
+        else:
+            ht = torch.sum(ht.permute(0, 2, 1), dim=1) / ht.shape[2]
         z_mean = self.fc_mean(ht)
         z_log_var = self.fc_log_var(ht)
         z = self.reparameterize(z_mean, z_log_var)
