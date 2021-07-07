@@ -177,7 +177,8 @@ class VAEDecoder(nn.Module):
         super(VAEDecoder, self).__init__()
         self.config = config
         self.fc_vae = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * (2 * config.max_length + 1))
-        self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level, add_fc_layer=False))
+        self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level, add_fc_layer=False),
+                                     GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level, add_fc_layer=False))
         self.fc_out = nn.Linear(in_features=config.hidden_dim, out_features=config.char_table_size + 2)
 
     def forward(self, inputs):

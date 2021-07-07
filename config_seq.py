@@ -14,7 +14,7 @@ class Config:
         self.word_dim = 100
         self.hidden_dim = 256
         self.max_length = None  # if set None, max length will depend on the longest input in a batch.
-        self.model_type = "LSTM"  # "GCNN" -> gated cnn, "LSTM" -> bi-LSTM
+        self.model_type = "GCNN"  # "GCNN" -> gated cnn, "LSTM" -> bi-LSTM
         # GCNN settings
         self.kernel_size = 3
         self.dilation = 1
@@ -32,4 +32,4 @@ class Config:
         self.word2id = {}
         self.word_table_size = len(self.word2id)
 
-        self.output_dir = "result/model_lstm_b64_c128_h256"
+        self.output_dir = "result/model_gcnn_b64_c128_h256"

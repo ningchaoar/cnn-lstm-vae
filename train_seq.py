@@ -16,8 +16,8 @@ def train_seq_labeling():
     dataloader = DataLoader(couplet_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=couplet_dataset.custom_collate_fn_1)
     model = CoupletSeqLabeling(config)
     model.to(config.device)
-    loss_fn = nn.CrossEntropyLoss(reduction='mean')
-    optimizer = torch.optim.Adam(model.parameters())
+    loss_fn = nn.CrossEntropyLoss(reduction='mean').to(config.device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     logger_string = "epoch: {}, loss: {}\n"
     print("start training...")
     for epoch in range(config.epoch):

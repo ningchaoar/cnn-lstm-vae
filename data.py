@@ -5,7 +5,7 @@ import collections
 import numpy as np
 from tqdm import tqdm
 from typing import List, Dict
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 
 
 class CustomDataset(Dataset):
@@ -38,7 +38,7 @@ class CustomDataset(Dataset):
         with open(path, 'r', encoding='utf-8') as fr:
             for line in fr:
                 line = line.strip().split(' ')
-                if self.config.max_length and len(line) > self.config.max_length:
+                if self.config.max_length and len(line) != self.config.max_length:
                     continue
                 datas.append(["".join(line)])
         return datas

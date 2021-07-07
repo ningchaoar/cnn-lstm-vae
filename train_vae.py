@@ -45,11 +45,15 @@ def save_model(model: nn.Module, model_name: str, output_dir: str):
 def preview_result(model: nn.Module, config: Config):
     generator = model.get_decoder()
     generator.eval()
+
     for _ in range(5):
         x = torch.randn((1, config.hidden_dim)).to(config.device)
         mask = torch.ones((1, 2 * config.max_length + 1)).to(config.device)
         logits = generator((x, mask))
-        outputs = torch.argmax(logits, dim=2).long()
+        unk_mask = torch.zeros(logits.shape[-1])
+        unk_mask[-1] = -10000
+        unk_mask = torch.tile(unk_mask, (1, logits.shape[1], 1))
+        outputs = torch.argmax(logits + unk_mask, dim=2).long()
         predict = ""
         for i in outputs[0].tolist():
             if i == 0:
@@ -57,7 +61,7 @@ def preview_result(model: nn.Module, config: Config):
             elif i == 1:
                 predict += "<SEP>"
             else:
-                predict += config.id2char.get(i, "<UNK>")
+                predict += config.id2char[i]
         print("result: {}\n".format(predict))
 
 

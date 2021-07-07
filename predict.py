@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 
-from config import Config
+from config_seq import Config
 from model import CoupletSeqLabeling
 
 
