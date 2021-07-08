@@ -50,7 +50,7 @@ def preview_result(model: nn.Module, config: Config):
         x = torch.randn((1, config.hidden_dim)).to(config.device)
         mask = torch.ones((1, 2 * config.max_length + 1)).to(config.device)
         logits = generator((x, mask))
-        unk_mask = torch.zeros(logits.shape[-1])
+        unk_mask = torch.zeros(logits.shape[-1]).to(config.device)
         unk_mask[-1] = -10000
         unk_mask = torch.tile(unk_mask, (1, logits.shape[1], 1))
         outputs = torch.argmax(logits + unk_mask, dim=2).long()

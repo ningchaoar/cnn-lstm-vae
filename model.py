@@ -2,10 +2,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-"""
-基本模块
-Embedding -> Encoder -> (VAE) -> Decoder -> BeamSearch
-"""
 
 
 class CustomEmbedding(nn.Module):
@@ -89,15 +85,15 @@ class CoupletSeqLabeling(nn.Module):
         emb = self.embedding(ids)
         if self.config.model_type == "GCNN":
             ht, mask = self.encoder((emb.permute(0, 2, 1), mask))
-            logit = self.fc(ht.permute(0, 2, 1))
+            logits = self.fc(ht.permute(0, 2, 1))
         elif self.config.model_type == "LSTM":
             emb = nn.utils.rnn.pack_padded_sequence(emb, lengths, batch_first=True, enforce_sorted=False)
             ht = self.encoder(emb)
             ht, lengths = nn.utils.rnn.pad_packed_sequence(ht[0], batch_first=True)
-            logit = self.fc(ht)
+            logits = self.fc(ht)
         else:
             raise Exception("Wrong Model Type")
-        return logit
+        return logits
 
 
 class CoupletSeq2SeqWithVAE(nn.Module):
@@ -176,14 +172,15 @@ class VAEDecoder(nn.Module):
     def __init__(self, config):
         super(VAEDecoder, self).__init__()
         self.config = config
-        self.fc_vae = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * (2 * config.max_length + 1))
+        self.fc_vae1 = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim)
+        self.fc_vae2 = nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim * (2 * config.max_length + 1))
         self.decoder = nn.Sequential(GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level, add_fc_layer=False),
                                      GatedCNN(hidden_dim=config.hidden_dim, dropout_level=config.dropout_level, add_fc_layer=False))
         self.fc_out = nn.Linear(in_features=config.hidden_dim, out_features=config.char_table_size + 2)
 
     def forward(self, inputs):
         z, mask = inputs
-        hz = self.fc_vae(z)
+        hz = self.fc_vae2(self.fc_vae1(z))
         hz = hz.view(-1, 2 * self.config.max_length + 1, self.config.hidden_dim)
         hz, mask = self.decoder((hz.permute(0, 2, 1), mask))
         logits = self.fc_out(hz.permute(0, 2, 1))
