@@ -1,0 +1,5 @@
+tqdm
+jieba
+wandb
+numpy
+pytorch >= 1.6

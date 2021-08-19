@@ -16,13 +16,18 @@ def train_vae():
                             collate_fn=couplet_dataset.custom_collate_fn_2)
     model = CoupletSeq2SeqWithVAE(config)
     model.to(config.device)
+    if config.wandb:
+        import wandb
+        wandb.init()
+        wandb.watch(model, log_freq=100)
     loss_fn = nn.CrossEntropyLoss(reduction='sum').to(config.device)
     optimizer = torch.optim.Adam(model.parameters())
     logger_string = "epoch: {}, cross_entropy_loss: {}, kld_loss: {}\n"
     print("start training...")
     for epoch in range(config.epoch):
         model.train()  # set mode to train
-        for data in tqdm(dataloader):
+        step = 0
+        for data in tqdm(dataloader, disable=not config.show_process_bar):
             inputs, targets = data
             logits, kld_loss = model(inputs)
             label_loss = loss_fn(logits.permute(0, 2, 1), targets) / config.batch_size
@@ -30,6 +35,10 @@ def train_vae():
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
+            step += 1
+            if config.wandb:
+                if step % 10 == 0:
+                    wandb.log({"loss": loss})
         print(logger_string.format(epoch, label_loss.item(), kld_loss.item()))
         preview_result(model, config)
         save_model(model, "model_{}_{:.3f}.pt".format(epoch, loss.item()), config.output_dir)

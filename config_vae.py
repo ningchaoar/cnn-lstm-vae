@@ -5,6 +5,8 @@ class Config:
     def __init__(self, char_table_file):
         self.train_data_dir = "resources/poem/train"
         self.valid_data_dir = "resources/poem/train"
+        self.wandb = True
+        self.show_process_bar = True
         self.learning_rate = 0.001
         self.batch_size = 64
         self.epoch = 50
